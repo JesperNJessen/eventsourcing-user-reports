@@ -10,6 +10,7 @@ builder.Services.AddMarten(options =>
     options.Connection("Server=localhost;Port=5432;Database=mydb;User ID=test;Password=pass;");
     options.UseSystemTextJsonForSerialization();
     options.Projections.Add<UserProjection>(ProjectionLifecycle.Inline);
+    options.Projections.Add<ReportProjection>(ProjectionLifecycle.Inline);
 
     if (builder.Environment.IsDevelopment())
     {
@@ -21,36 +22,43 @@ var app = builder.Build();
 
 app.MapPost("users", async (IDocumentStore store, CreateUserRequest request) =>
 {
-    var order = new Events.UserCreated
+    var user = new Events.UserCreated
     {
         Name = request.Name
     };
 
     await using var session = store.LightweightSession();
-    session.Events.StartStream<User>(order.Id, order);
+    session.Events.StartStream<User>(user.Id, user);
     await session.SaveChangesAsync();
-    return Results.Ok(order);
+    return Results.Ok(user);
 });
 
-app.MapPost("users/{userId:guid}/status", 
-    async (IDocumentStore store, Guid userId, UpdateUserRequest request) =>
+app.MapPost("reports",
+    async (IDocumentStore store, ReportUserRequest request) =>
     {
-        var updated = new Events.UserUpdated
+        var created = new Events.ReportCreated
         {
-            Id = userId,
-            Status = request.Status
+            UserId = request.UserId,
+            ReportedBy = request.ReportedBy,
+            ReportedOn = DateTimeOffset.UtcNow,
         };
-        
+
         await using var session = store.LightweightSession();
-        session.Events.Append(userId, updated);
+        session.Events.StartStream<Report>(created.Id, created);
+
+        var report = await session.LoadAsync<Report>(created.Id);
+        var user = await session.LoadAsync<User>(created.UserId);
+        user.Reports.Add(report);
+        session.Events.Append(user.Id, user);
+
         await session.SaveChangesAsync();
-        return Results.Ok(updated);
+        return Results.Ok(created);
     });
 
 app.MapGet("users/{userId:guid}", async (IQuerySession session, Guid userId) =>
 {
-    var order = await session.LoadAsync<User>(userId);
-    return order is not null ? Results.Ok(order) : Results.NotFound(); 
+    var user = await session.LoadAsync<User>(userId);
+    return user is not null ? Results.Ok(user) : Results.NotFound();
 });
 
 app.MapGet("users/{userId:guid}/history", async (IQuerySession session, Guid userId) =>
@@ -61,7 +69,7 @@ app.MapGet("users/{userId:guid}/history", async (IQuerySession session, Guid use
     {
         Id = e.Id,
         Type = e.EventType.Name,
-        Data = e.Data,          
+        Data = e.Data,
         Timestamp = e.Timestamp
     });
 
@@ -70,8 +78,14 @@ app.MapGet("users/{userId:guid}/history", async (IQuerySession session, Guid use
 
 app.MapGet("users", async (IQuerySession session) =>
 {
-    var orders = await session.Query<User>().ToListAsync();
-    return Results.Ok(orders);
+    var users = await session.Query<User>().ToListAsync();
+    return Results.Ok(users);
+});
+
+app.MapGet("reports", async (IQuerySession session) =>
+{
+    var reports = await session.Query<Report>().ToListAsync();
+    return Results.Ok(reports);
 });
 
 app.Run();

@@ -1,3 +1,3 @@
 public record CreateUserRequest(string? Name);
 
-public record UpdateUserRequest(string Status);
+public record ReportUserRequest(Guid UserId, Guid ReportedBy);
