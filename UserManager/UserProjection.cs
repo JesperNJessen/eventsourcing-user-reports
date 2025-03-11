@@ -9,4 +9,9 @@ public class UserProjection : SingleStreamProjection<User>
         user.Id = created.Id;
         user.Name = created.Name;
     }
+    public void Apply(Events.UserUpdated created, User user)
+    {
+        user.Id = created.Id;
+        user.Status = created.Status;
+    }
 }

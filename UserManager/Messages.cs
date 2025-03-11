@@ -1,11 +1,5 @@
-namespace UserManager;
-public class Events
+public class Messages
 {
-    public class UserCreated
-    {
-        public Guid Id { get; set; } = Guid.CreateVersion7();
-        public string? Name { get; set; }
-    }
     public class ReportCreated
     {
         public Guid Id { get; set; } = Guid.CreateVersion7();
@@ -17,6 +11,5 @@ public class Events
     public class UserUpdated
     {
         public Guid Id { get; set; } = Guid.CreateVersion7();
-        public string? Status { get; set; }
     }
 }
